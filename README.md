@@ -120,6 +120,51 @@ cd Cyclone_avx512
 g++ -std=c++17 -Ofast -ffast-math -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -mavx512f -mavx512vl -mavx512bw -mavx512dq -fipa-modref -flto -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -o Cyclone Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp Point.cpp ripemd160_avx2.cpp p2pkh_decoder.cpp sha256_avx2.cpp ripemd160_avx512.cpp sha256_avx512.cpp
 ```
 
-## ✌️**TIPS**
-BTC: bc1qtq4y9l9ajeyxq05ynq09z8p52xdmk4hqky9c8n
+## 🔍 Prefix Matching Option
 
+Cyclone now features a new command-line argument, `-p` (or `--prefix`), which allows you to specify the number of prefix bytes to match against the computed hash160 of the public key. This enhancement enables earlier identification of potential partial matches and improves the overall search flexibility. When a partial match is detected, detailed information is shown immediately, and when a full match is confirmed, it is saved in the output file.
+
+*Note: This feature is currently implemented only in **Cyclone_avx2***.
+
+**Example usage:**
+```bash
+❯ ./Cyclone -a 1FRoHA9xewq7DjrZ1psWJVeTer8gHRqEvR -r 1:ffffffff -p 3
+
+================= WORK IN PROGRESS =================
+Target Address: 1FRoHA9xewq7DjrZ1psWJVeTer8gHRqEvR
+Prefix length : 3 bytes
+CPU Threads   : 16
+Mkeys/s       : 37.71
+Total Checked : 1885316608
+Elapsed Time  : 00:00:50
+Range         : 1:ffffffff
+Progress      : 43.8959 %
+Progress Save : 0
+================== PARTIAL MATCH FOUND! ============
+Prefix length : 3 bytes
+Private Key   : 0000000000000000000000000000000000000000000000000000000018573147
+Public Key    : 02E1C602DEB1BCF47A66166D2397112FD44B85457C2BBA47BADEE3AA56A64A356E
+WIF           : KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M8ADiUeziYmcmg
+Found Hash160 : 9e426069a651b8c2d9a44cf42b23da4b2ef9cb5c
+Target Hash160: 9e42601eeaedc244e15f17375adb0e2cd08efdc9
+Matched bytes : 9e4260
+================== FOUND MATCH! ====================
+Private Key   : 00000000000000000000000000000000000000000000000000000000B862A62E
+Public Key    : 0209C58240E50E3BA3F833C82655E8725C037A2294E14CF5D73A5DF8D56159DE69
+WIF           : KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9MACNivtz8yMYTd
+P2PKH Address : 1FRoHA9xewq7DjrZ1psWJVeTer8gHRqEvR
+Total Checked : 2262740480
+Elapsed Time  : 00:00:52
+Speed         : 36.2887 Mkeys/s
+```
+
+Simply include the `-p <bytes>` parameter (ranging from 1 to 20) in your command-line arguments to adjust the prefix length based on your search requirements.
+
+## ✌️**TIPS**
+A big thank you to [Dookoo2](https://github.com/Dookoo2) the creator for all his invaluable contributions!
+
+If you appreciate this project, please consider sending a tip:
+- **Creator’s BTC Address:**
+bc1qtq4y9l9ajeyxq05ynq09z8p52xdmk4hqky9c8n
+- **My BTC Address:** 
+bc1qedv6r3zmnt4ew60hsne5q889lrt3u3d34kxkwy
