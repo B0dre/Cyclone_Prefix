@@ -1,6 +1,7 @@
 //g++ -std=c++17 -Ofast -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -fipa-modref -flto -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -o Vertix point_add.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp Point.cpp ripemd160_avx2.cpp p2pkh_decoder.cpp sha256_avx2.cpp
 
 //The software is developed for solving Satoshi's puzzles; any use for illegal purposes is strictly prohibited. The author is not responsible for any actions taken by the user when using this software for unlawful activities.
+// Prefix option added by @B0dre
 #include <immintrin.h>
 #include <iostream>
 #include <iomanip>
@@ -15,6 +16,7 @@
 #include <omp.h>
 #include <array>
 #include <utility>
+#include <mutex>
 // Adding program modules
 #include "p2pkh_decoder.h"
 #include "sha256_avx2.h"
@@ -23,6 +25,7 @@
 #include "Point.h"
 #include "Int.h"
 #include "IntGroup.h"
+#include "tee_stream.h"
 
 //------------------------------------------------------------------------------
 // Batch size: ±256 public keys (512), hashed in groups of 8 (AVX2).
@@ -35,6 +38,13 @@ static constexpr double saveProgressIntervalSec = 300.0;
 
 static int g_progressSaveCount = 0;
 static std::vector<std::string> g_threadPrivateKeys;
+std::mutex coutMutex;
+
+static void clearTerminal() {
+    // Envía el código ANSI para limpiar la pantalla y reposicionar el cursor
+    std::cout << "\033[2J\033[H";
+    std::cout.flush();
+}
 
 //------------------------------------------------------------------------------
 void saveProgressToFile(const std::string &progressStr)
@@ -286,7 +296,10 @@ static void computeHash160BatchBinSingle(int numKeys,
 
 //------------------------------------------------------------------------------
 static void printUsage(const char* programName) {
-    std::cerr << "Usage: " << programName << " -a <Base58_P2PKH> -r <START:END>\n";
+    std::cerr << "Usage: " << programName << " -a <Base58_P2PKH> -r <START:END> [--prefix <length>]\n";
+    std::cerr << "  -a <Base58_P2PKH>      : Target Bitcoin address\n";
+    std::cerr << "  -r <START:END>         : Private key range in HEX\n";
+    std::cerr << "  --prefix, -p <length>  : Optional - Length of prefix to match (1-20, default: 20)\n";
 }
 
 static std::string formatElapsedTime(double seconds) {
@@ -300,20 +313,30 @@ static std::string formatElapsedTime(double seconds) {
     return oss.str();
 }
 
+int g_prefixLength = 4;  // Default to full 20 bytes (complete match)
+
 //------------------------------------------------------------------------------
 static void printStatsBlock(int numCPUs, const std::string &targetAddr,
                             const std::string &rangeStr, double mkeysPerSec,
                             unsigned long long totalChecked, double elapsedTime,
                             int progressSaves, long double progressPercent)
 {
+    std::lock_guard<std::mutex> lock(coutMutex);
     static bool firstPrint = true;
     if (!firstPrint) {
-        std::cout << "\033[9A";
+        std::cout << "\033[1;1H";
+
+        for (int i = 0; i < 8; i++) {
+            std::cout << "\033[K" << "\n";
+        }
+
     } else {
         firstPrint = false;
     }
+    std::cout << "\033[1;1H";
     std::cout << "================= WORK IN PROGRESS =================\n";
     std::cout << "Target Address: " << targetAddr << "\n";
+    std::cout << "Prefix length : " << g_prefixLength << " bytes" << "\n";
     std::cout << "CPU Threads   : " << numCPUs << "\n";
     std::cout << "Mkeys/s       : " << std::fixed << std::setprecision(2) << mkeysPerSec << "\n";
     std::cout << "Total Checked : " << totalChecked << "\n";
@@ -335,9 +358,11 @@ static std::vector<ThreadRange> g_threadRanges;
 //------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
-    bool addressProvided = false, rangeProvided = false;
+    clearTerminal();
+    bool addressProvided = false, rangeProvided = false, prefixProvided = false;
     std::string targetAddress, rangeInput;
     std::vector<uint8_t> targetHash160;
+    int prefixLength = 20;
 
     for (int i = 1; i < argc; i++) {
         if (!std::strcmp(argv[i], "-a") && i + 1 < argc) {
@@ -354,16 +379,32 @@ int main(int argc, char* argv[])
         } else if (!std::strcmp(argv[i], "-r") && i + 1 < argc) {
             rangeInput = argv[++i];
             rangeProvided = true;
+        } else if ((!std::strcmp(argv[i], "--prefix") || !std::strcmp(argv[i], "-p")) && i + 1 < argc) {
+            try {
+                prefixLength = std::stoi(argv[++i]);
+                prefixProvided = true;
+                if (prefixLength < 1 || prefixLength > 20) {
+                    throw std::out_of_range("Prefix length must be between 1 and 20.");
+                }
+            } catch (const std::exception &ex) {
+                std::cerr << "Error parsing prefix length: " << ex.what() << "\n";
+                return 1;
+            }
         } else {
             std::cerr << "Unknown parameter: " << argv[i] << "\n";
             printUsage(argv[0]);
             return 1;
         }
     }
+
     if (!addressProvided || !rangeProvided) {
         std::cerr << "Both -a <Base58_P2PKH> and -r <START:END> are required!\n";
         printUsage(argv[0]);
         return 1;
+    }
+
+    if (prefixProvided) {
+        g_prefixLength = prefixLength;
     }
 
     const size_t colonPos = rangeInput.find(':');
@@ -434,7 +475,7 @@ int main(int argc, char* argv[])
     auto lastStatusTime = tStart;
     auto lastSaveTime   = tStart;
 
-    bool matchFound            = false;
+    bool matchFound = false;
     std::string foundPrivateKeyHex, foundPublicKeyHex, foundWIF;
 
     Secp256K1 secp;
@@ -577,17 +618,18 @@ int main(int argc, char* argv[])
                     for (int j = 0; j < HASH_BATCH_SIZE; j++) {
                         __m128i cand16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(localHashResults[j]));
                         __m128i cmp = _mm_cmpeq_epi8(cand16, target16);
-                        if (_mm_movemask_epi8(cmp) == 0xFFFF) {
-                            // Checking last 4 bytes (20 - 16)
-                            if (!matchFound && std::memcmp(localHashResults[j], targetHash160.data(), 20) == 0) {
+
+                        // Use the g_prefixLength variable for comparison
+                        if (_mm_movemask_epi8(cmp) & ((1 << g_prefixLength) - 1) == ((1 << g_prefixLength) - 1)) {
+                            // If the first g_prefixLength bytes match, perform a memcmp to be sure
+                            if (!matchFound && std::memcmp(localHashResults[j], targetHash160.data(), g_prefixLength) == 0) {
                                 #pragma omp critical
                                 {
                                     if (!matchFound) {
-                                        matchFound = true;
                                         auto tEndTime = std::chrono::high_resolution_clock::now();
                                         globalElapsedTime = std::chrono::duration<double>(tEndTime - tStart).count();
                                         mkeysPerSec = (double)(globalComparedCount + localComparedCount) / globalElapsedTime / 1e6;
-
+                                        
                                         // Recovering private key
                                         Int matchingPrivateKey;
                                         matchingPrivateKey.Set(&currentBatchKey);
@@ -601,8 +643,77 @@ int main(int argc, char* argv[])
                                         }
                                         foundPrivateKeyHex = padHexTo64(intToHex(matchingPrivateKey));
                                         Point matchedPoint = pointBatch[idx];
-                                        foundPublicKeyHex  = pointToCompressedHex(matchedPoint);
-                                        foundWIF = P2PKHDecoder::compute_wif(foundPrivateKeyHex, true);
+                                        foundPublicKeyHex = pointToCompressedHex(matchedPoint);
+
+                                        bool bytesMatch = true;
+                                        for (int b = 0; b < 20; b++) {
+                                            if (localHashResults[j][b] != targetHash160.data()[b]) {
+                                                bytesMatch = false;
+                                                break;
+                                            }
+                                        }
+                                        if (bytesMatch) {
+                                            matchFound = true;
+                                            foundWIF = P2PKHDecoder::compute_wif(foundPrivateKeyHex, true);
+                                        } else {
+                                            matchFound = false;
+                                            foundWIF = P2PKHDecoder::compute_wif(foundPrivateKeyHex, true);
+                                            // Print the partial match information
+                                            std::lock_guard<std::mutex> lock(coutMutex);
+                                            std::cout << "\033[11;1H";
+                                            std::cout << "\033[K";
+                                            std::cout << "================== PARTIAL MATCH FOUND! ============\n";
+                                            std::cout << "Prefix length : " << g_prefixLength << " bytes" << "\n";
+                                            std::cout << "Private Key   : " << foundPrivateKeyHex << "\n";
+                                            std::cout << "Public Key    : " << foundPublicKeyHex << "\n";
+                                            std::cout << "WIF           : " << foundWIF << "\n";
+                                            std::cout << "Found Hash160 : ";
+                                            for (int b = 0; b < 20; b++) {
+                                                printf("%02x", localHashResults[j][b]);
+                                            }
+                                            std::cout << "\n";
+                                            std::cout << "Target Hash160: ";
+                                            for (int b = 0; b < 20; b++) {
+                                                printf("%02x", targetHash160.data()[b]);
+                                            }
+                                            std::cout << "\n";
+                                            std::cout << "Matched bytes : ";
+                                            for (int b = 0; b < g_prefixLength; b++) {
+                                                printf("%02x", targetHash160.data()[b]);
+                                            }
+                                            std::cout << std::endl;
+                                            std::cout.flush();
+                                            std::ofstream partialFile("PREFIX_" + targetAddress + ".txt", std::ios::app);
+                                            if (partialFile.is_open()) {
+                                                partialFile << "================== PARTIAL MATCH FOUND! ============\n";
+                                                partialFile << "Prefix length : " << g_prefixLength << " bytes" << "\n";
+                                                partialFile << "Private Key   : " << foundPrivateKeyHex << "\n";
+                                                partialFile << "Public Key    : " << foundPublicKeyHex << "\n";
+                                                partialFile << "WIF           : " << foundWIF << "\n";
+                                                partialFile << "Found Hash160 : ";
+                                                for (int b = 0; b < 20; b++) {
+                                                    partialFile << std::setw(2) << std::setfill('0') << std::hex 
+                                                                << static_cast<unsigned int>(localHashResults[j][b]);
+                                                }
+                                                partialFile << "\n";
+                                                partialFile << "Target Hash160: ";
+                                                for (int b = 0; b < 20; b++) {
+                                                    partialFile << std::setw(2) << std::setfill('0') << std::hex 
+                                                                << static_cast<unsigned int>(targetHash160.data()[b]);
+                                                }
+                                                partialFile << "\n";
+                                                partialFile << "Matched bytes : ";
+                                                for (int b = 0; b < g_prefixLength; b++) {
+                                                    partialFile << std::setw(2) << std::setfill('0') << std::hex 
+                                                                << static_cast<unsigned int>(targetHash160.data()[b]);
+                                                }
+                                                partialFile << std::endl;
+                                                partialFile.close();
+                                            } else {
+                                                std::cerr << "Could not open file " << "FOUND_" + targetAddress + ".txt" << "for writing.\n";
+                                            }
+                                        }
+
                                     }
                                 }
                                 #pragma omp cancel parallel
@@ -692,15 +803,23 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    // If the key was found
-    std::cout << "================== FOUND MATCH! ==================\n";
-    std::cout << "Private Key   : " << foundPrivateKeyHex << "\n";
-    std::cout << "Public Key    : " << foundPublicKeyHex << "\n";
-    std::cout << "WIF           : " << foundWIF << "\n";
-    std::cout << "P2PKH Address : " << targetAddress << "\n";
-    std::cout << "Total Checked : " << globalComparedCount << "\n";
-    std::cout << "Elapsed Time  : " << formatElapsedTime(globalElapsedTime) << "\n";
-    std::cout << "Speed         : " << mkeysPerSec << " Mkeys/s\n";
+    // If the key was found print and save it
+    std::ofstream file("FOUND_" + targetAddress + ".txt");
+    if (file.is_open()) {
+        TeeBuf teeBuf(std::cout.rdbuf(), file.rdbuf());
+        std::ostream teeStream(&teeBuf);
+        teeStream << "================== FOUND MATCH! ====================\n";
+        teeStream << "Private Key   : " << foundPrivateKeyHex << "\n";
+        teeStream << "Public Key    : " << foundPublicKeyHex << "\n";
+        teeStream << "WIF           : " << foundWIF << "\n";
+        teeStream << "P2PKH Address : " << targetAddress << "\n";
+        teeStream << "Total Checked : " << globalComparedCount << "\n";
+        teeStream << "Elapsed Time  : " << formatElapsedTime(globalElapsedTime) << "\n";
+        teeStream << "Speed         : " << mkeysPerSec << " Mkeys/s\n";
+        // file.close()
+    } else {
+        std::cerr << "Could not open file FOUND_" << targetAddress << ".txt for writing.\n";
+    }
     return 0;
 }
 
