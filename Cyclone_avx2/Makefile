@@ -1,5 +1,6 @@
-// Coded by @B0dre
+# This Makefile has been tested on macOS.
 # Compiler to use (GCC 14 installed via Homebrew)
+# Coded by @B0dre
 CC = g++-14
 
 # Detect system architecture (Intel or Apple Silicon)
