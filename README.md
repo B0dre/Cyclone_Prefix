@@ -113,6 +113,11 @@ git clone https://github.com/Dookoo2/Cyclone.git
 cd Сyclone
 cd Cyclone_avx2
 g++ -std=c++17 -Ofast -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -fipa-modref -flto -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -o Cyclone Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp Point.cpp ripemd160_avx2.cpp p2pkh_decoder.cpp sha256_avx2.cpp
+## AVX2 - Makefile (Ubuntu) ##
+git clone https://github.com/Dookoo2/Cyclone.git
+cd Сyclone
+cd Cyclone_avx2
+make CXX=g++
 ## AVX512 ##
 git clone https://github.com/Dookoo2/Cyclone.git
 cd Сyclone
