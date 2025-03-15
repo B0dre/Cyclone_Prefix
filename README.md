@@ -165,6 +165,30 @@ Speed         : 36.2887 Mkeys/s
 
 Simply include the `-p <bytes>` parameter (ranging from 1 to 20) in your command-line arguments to adjust the prefix length based on your search requirements.
 
+## 🔄 Random Mode Usage
+
+The `auto_random.py` script runs Cyclone in random mode by generating a pair of random hexadecimal values separated by a fixed 30-bit gap. These values are then passed as range parameters to the Cyclone binary. The script continuously iterates until a match is found, at which point the output block is saved to `found_match.txt` and the script terminates.
+
+### Prerequisites
+- Ensure that the Cyclone binary is compiled and located in the same directory as `auto_random.py`.
+- On macOS, verify that you have Python 3 installed and that the script has executable permissions if you wish to run it directly.
+
+### Running the Script
+
+You can run the script in one of two ways:
+
+1. Directly (if executable):
+   ```bash
+   ./auto_random.py
+   ```
+
+2. Using Python 3:
+   ```bash
+   python3 auto_random.py
+   ```
+
+During execution, the script prints the iteration count, the generated hexadecimal range values, and real-time output from the Cyclone binary. When "FOUND MATCH!" is detected in the output, the corresponding log is saved and the script exits.
+
 ## ✌️**TIPS**
 A big thank you to [Dookoo2](https://github.com/Dookoo2) the creator for all his invaluable contributions!
 
