@@ -620,7 +620,7 @@ int main(int argc, char* argv[])
                         __m128i cmp = _mm_cmpeq_epi8(cand16, target16);
 
                         // Use the g_prefixLength variable for comparison
-                        if (_mm_movemask_epi8(cmp) & ((1 << g_prefixLength) - 1) == ((1 << g_prefixLength) - 1)) {
+                        if ((_mm_movemask_epi8(cmp) & ((1 << g_prefixLength) - 1)) == ((1 << g_prefixLength) - 1)) {
                             // If the first g_prefixLength bytes match, perform a memcmp to be sure
                             if (!matchFound && std::memcmp(localHashResults[j], targetHash160.data(), g_prefixLength) == 0) {
                                 #pragma omp critical
