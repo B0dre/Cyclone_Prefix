@@ -1,6 +1,6 @@
 # 🚀 Cyclone: The World's Fastest CPU Satoshi Puzzle Solver
 
-Cyclone is the fastest CPU Satoshi puzzle solver in the world, leveraging the power of modern CPU instructions such as **AVX2** and **AVX512** to achieve unparalleled performance. Designed to run on **Linux**, Cyclone is optimized for speed and accuracy, making it the ideal tool for solving cryptographic puzzles.
+Cyclone is the fastest CPU Satoshi puzzle solver in the world, leveraging the power of modern CPU instructions such as **AVX2** to achieve unparalleled performance. Designed to run on **Linux**, Cyclone is optimized for speed and accuracy, making it the ideal tool for solving cryptographic puzzles.
 Secp256k1 math are based on the excellent work from JeanLucPons/VanitySearch (https://github.com/JeanLucPons/VanitySearch), with a few modifications.
 I extend our gratitude to Jean-Luc Pons for his foundational contributions to the cryptographic community.
 
@@ -8,9 +8,9 @@ I extend our gratitude to Jean-Luc Pons for his foundational contributions to th
 
 ## ⚡ Key Features
 
-- **Blazing Fast Performance**: Cyclone utilizes **AVX2** and **AVX512** instructions to deliver unmatched CPU speed in solving Satoshi puzzles.
-- **Accurate Calculations**: Cyclone ensures full and correct computation of compressed public keys and **hash160**, with parallel processing for batches of 8 hashes (AVX2) and 16 hashes (AVX512).
-- **Flexible Implementations**: Choose between **AVX2** and **AVX512** implementations based on your hardware capabilities.
+- **Blazing Fast Performance**: Cyclone utilizes **AVX2** instructions to deliver unmatched CPU speed in solving Satoshi puzzles.
+- **Accurate Calculations**: Cyclone ensures full and correct computation of compressed public keys and **hash160**, with parallel processing for batches of 8 hashes (AVX2).
+- **Flexible Implementations**: Choose between **AVX2** implementations based on your hardware capabilities.
 - **Linux Compatibility**: Cyclone is designed to run seamlessly on Linux systems or Ubuntu Windows WSL 2.
 - **Progress saving**: Progress is saved every 5 minutes during work in the **progress.txt** file.
 
@@ -36,7 +36,6 @@ I extend our gratitude to Jean-Luc Pons for his foundational contributions to th
 |--------------------|-----------------|--------------------------------------------------------------------------------------------|
 | **Vanity Search**  | 120             | No option to select a range of private keys for search.                                    |
 | **Cyclone AVX2**   | 139             | Computing 8 hash160 per batch                                                              |
-| **Cyclone AVX512** | 159             | Computing 16 hash160 per batch                                                             |
 
 ---
 ## 🔷 Example Output
@@ -118,11 +117,6 @@ git clone https://github.com/Dookoo2/Cyclone.git
 cd Сyclone
 cd Cyclone_avx2
 make CXX=g++
-## AVX512 ##
-git clone https://github.com/Dookoo2/Cyclone.git
-cd Сyclone
-cd Cyclone_avx512
-g++ -std=c++17 -Ofast -ffast-math -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -mavx512f -mavx512vl -mavx512bw -mavx512dq -fipa-modref -flto -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -o Cyclone Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp Point.cpp ripemd160_avx2.cpp p2pkh_decoder.cpp sha256_avx2.cpp ripemd160_avx512.cpp sha256_avx512.cpp
 ```
 
 ## 🔍 Prefix Matching Option
